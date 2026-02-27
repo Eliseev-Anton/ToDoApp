@@ -2,9 +2,10 @@ import UIKit
 
 /// Отвечает за сборку VIPER-модуля списка задач и навигацию внутри него.
 ///
+/// Router — единственный компонент, который знает о конкретных классах других компонентов.
 final class TaskListRouter: TaskListRouterProtocol {
 
-    /// weak — чтобы избежать retain-цикла
+    /// weak — чтобы избежать retain-цикла: Router хранит VC, VC хранит Presenter, Presenter хранит Router
     weak var viewController: UIViewController?
 
     /// Точка входа в модуль — вызывается из SceneDelegate при старте приложения.
@@ -28,4 +29,12 @@ final class TaskListRouter: TaskListRouterProtocol {
         return nav
     }
 
+    /// Открывает экран задачи как fullScreen overlay
+    /// Делегатом назначается TaskListViewController, чтобы список обновился после сохранения.
+    func navigateToDetail(from view: TaskListViewProtocol, with todo: TodoItem?) {
+        let detailVC = TaskDetailRouter.createModule(with: todo, delegate: viewController as? TaskDetailModuleDelegate)
+        detailVC.modalPresentationStyle = .fullScreen
+        detailVC.modalTransitionStyle = .crossDissolve
+        viewController?.present(detailVC, animated: true)
+    }
 }

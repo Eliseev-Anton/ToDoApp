@@ -25,7 +25,7 @@ final class TodoCell: UITableViewCell {
         return label
     }()
 
-    /// Показывает описание задачи, максимум 2 строки.
+    /// Показывает описание задачи.
     /// Если описание пустое — отображает текст задачи (дублирует title).
     private let descriptionLabel: UILabel = {
         let label = UILabel()
@@ -46,8 +46,7 @@ final class TodoCell: UITableViewCell {
         return label
     }()
 
-    /// Собственная линия-разделитель: стандартный separatorStyle = .none,
-    /// чтобы управлять отступами и цветом вручную
+    /// Собственная линия-разделитель
     private let separatorLine: UIView = {
         let v = UIView()
         v.backgroundColor = UIColor(red: 77/255, green: 85/255, blue: 94/255, alpha: 1)
@@ -127,7 +126,7 @@ final class TodoCell: UITableViewCell {
         updateCheckButton(isCompleted: todo.isCompleted)
 
         if todo.isCompleted {
-            // Зачёркиваем текст и делаем его серым, чтобы визуально отделить выполненные задачи
+            // Зачёркиваем текст и делаем его серым
             titleLabel.attributedText = NSAttributedString(
                 string: todo.title,
                 attributes: [
@@ -151,13 +150,13 @@ final class TodoCell: UITableViewCell {
     }
 
     /// Выполнено — иконка «check» из Assets (24×24).
-    /// Не выполнено — рисуем контурный круг rgba(77, 85, 94, 1) программно.
+    /// Не выполнено —  контурный круг .
     private func drawCheckmark(isCompleted: Bool) -> UIImage {
         if isCompleted, let asset = UIImage(named: "check") {
             return asset
         }
 
-        // Контурный круг для невыполненной задачи
+        // круг для невыполненной задачи
         let size = CGSize(width: 24, height: 24)
         return UIGraphicsImageRenderer(size: size).image { ctx in
             let rect = CGRect(origin: .zero, size: size).insetBy(dx: 1, dy: 1)

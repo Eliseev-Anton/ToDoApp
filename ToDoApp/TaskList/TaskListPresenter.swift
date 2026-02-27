@@ -2,7 +2,6 @@ import UIKit
 
 /// Presenter списка задач — посредник между View и Interactor.
 ///
-/// Не содержит никаких UIKit-зависимостей кроме передачи UIViewController в Router.
 /// Всё, что связано с отображением — делегируется View.
 /// Всё, что связано с данными — делегируется Interactor.
 final class TaskListPresenter: TaskListPresenterProtocol {
@@ -16,6 +15,14 @@ final class TaskListPresenter: TaskListPresenterProtocol {
         interactor?.fetchTodos()
     }
 
+    func didSelectTodo(_ todo: TodoItem) {
+        router?.navigateToDetail(from: view!, with: todo)
+    }
+
+    func addNewTodo() {
+        // nil сигнализирует Router'у, что открываем экран создания, а не редактирования
+        router?.navigateToDetail(from: view!, with: nil)
+    }
 
     func deleteTodo(_ todo: TodoItem) {
         interactor?.deleteTodo(id: todo.id)
@@ -29,8 +36,7 @@ final class TaskListPresenter: TaskListPresenterProtocol {
         interactor?.searchTodos(query: query)
     }
 
-    /// Шаринг — единственный случай, когда Presenter работает с UIViewController напрямую,
-    /// т.к. UIActivityViewController требует якорный контроллер для presentation.
+    /// Здесь Presenter работает с UIViewController напрямую,
     func shareTodo(_ todo: TodoItem, from viewController: UIViewController) {
         let text = "\(todo.title)\n\(todo.descriptionText)"
         let activityVC = UIActivityViewController(activityItems: [text], applicationActivities: nil)

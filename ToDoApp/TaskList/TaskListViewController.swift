@@ -5,19 +5,17 @@ import UIKit
 /// View в VIPER-архитектуре: не содержит бизнес-логики, только отображение.
 ///
 /// Использует UITableViewDiffableDataSource — снапшоты идемпотентны по id,
-/// поэтому двойной вызов showTodos с теми же данными не создаёт дублей.
-/// Навигация скрыта — кастомный заголовок и поиск для точного контроля отступов.
 final class TaskListViewController: UIViewController, TaskListViewProtocol {
 
     var presenter: TaskListPresenterProtocol?
 
     // MARK: - Diffable Data Source
 
-    
+    /// Int используется как тип секции
     private var dataSource: UITableViewDiffableDataSource<Int, Int64>!
 
     /// Хранилище задач: ключ — id, значение — объект.
-    /// Полностью заменяется при каждом вызове showTodos
+    /// Полностью заменяется при каждом вызове showTodo.
     private var itemStore: [Int64: TodoItem] = [:]
 
     /// Флаг нужен только для поиска: определяет, надо ли при возврате сбрасывать поле.
@@ -71,12 +69,12 @@ final class TaskListViewController: UIViewController, TaskListViewProtocol {
         return tf
     }()
 
-    /// Кнопка голосового ввода
+    /// Кнопка голосового ввода — показывает системный микрофон, запускает диктовку
     private lazy var micButton: UIButton = {
         let btn = UIButton(type: .system)
         let config = UIImage.SymbolConfiguration(pointSize: 14, weight: .regular)
         btn.setImage(UIImage(named: "audio"), for: .normal)
-        btn.tintColor =  UIColor(red: 244/255, green: 244/255, blue: 244/255, alpha: 1)
+        btn.tintColor = UIColor(red: 244/255, green: 244/255, blue: 244/255, alpha: 1)
         btn.addTarget(self, action: #selector(micTapped), for: .touchUpInside)
         btn.translatesAutoresizingMaskIntoConstraints = false
         return btn
@@ -84,6 +82,7 @@ final class TaskListViewController: UIViewController, TaskListViewProtocol {
 
     private lazy var tableView: UITableView = {
         let tv = UITableView(frame: .zero, style: .plain)
+        tv.delegate = self
         tv.register(TodoCell.self, forCellReuseIdentifier: TodoCell.identifier)
         tv.backgroundColor = .black
         tv.separatorStyle = .none
@@ -112,8 +111,9 @@ final class TaskListViewController: UIViewController, TaskListViewProtocol {
     private lazy var addButton: UIButton = {
         let btn = UIButton(type: .system)
         let config = UIImage.SymbolConfiguration(pointSize: 22, weight: .regular)
-        btn.setImage(UIImage(systemName: "square.and.pencil", withConfiguration: config), for: .normal)
+        btn.setImage(UIImage(named: "newTask"), for: .normal)
         btn.tintColor = UIColor(red: 1.0, green: 0.84, blue: 0.0, alpha: 1.0)
+        btn.addTarget(self, action: #selector(addTapped), for: .touchUpInside)
         btn.translatesAutoresizingMaskIntoConstraints = false
         return btn
     }()
@@ -124,6 +124,7 @@ final class TaskListViewController: UIViewController, TaskListViewProtocol {
         super.viewDidLoad()
         setupUI()
         configureDataSource()
+        setupLongPressGesture()
         setupKeyboardDismissOnTap()
         presenter?.viewDidLoad()
     }
@@ -158,9 +159,9 @@ final class TaskListViewController: UIViewController, TaskListViewProtocol {
             }
 
             cell.configure(with: todo)
-            // Захватываем todo из itemStore — он всегда актуален на момент создания ячейки
+            // Захватываем todo из itemStore
             cell.onToggle = { [weak self] in
-                // Берём свежую версию из стора — isCompleted мог измениться
+                // Берём свежую версию из стора
                 guard let current = self?.itemStore[itemID] else { return }
                 self?.presenter?.toggleTodoCompletion(current)
             }
@@ -260,9 +261,15 @@ final class TaskListViewController: UIViewController, TaskListViewProtocol {
         ])
     }
 
+    private func setupLongPressGesture() {
+        let lp = UILongPressGestureRecognizer(target: self, action: #selector(handleLongPress(_:)))
+        lp.minimumPressDuration = 0.5
+        tableView.addGestureRecognizer(lp)
+    }
+
     // MARK: - Helpers
 
-    /// Склоняет слово "задача" по правилам русского языка
+    
     private func updateCountLabel(count: Int) {
         let lastTwo = count % 100
         let lastOne = count % 10
@@ -281,10 +288,12 @@ final class TaskListViewController: UIViewController, TaskListViewProtocol {
 
     // MARK: - Actions
 
+    @objc private func addTapped() {
+        presenter?.addNewTodo()
+    }
+
     @objc private func micTapped() {
         // Фокусируем поле — на клавиатуре появится встроенная кнопка микрофона.
-        // Программно запустить диктовку без Speech framework невозможно через публичное API,
-        // поэтому используем стандартный механизм iOS: mic-кнопка на системной клавиатуре.
         searchTextField.becomeFirstResponder()
     }
 
@@ -298,6 +307,42 @@ final class TaskListViewController: UIViewController, TaskListViewProtocol {
             isSearchActive = true
             presenter?.searchTodos(query: query)
         }
+    }
+
+    // MARK: - Long Press Menu
+
+    @objc private func handleLongPress(_ gesture: UILongPressGestureRecognizer) {
+        guard gesture.state == .began else { return }
+
+        let point = gesture.location(in: tableView)
+        guard
+            let indexPath = tableView.indexPathForRow(at: point),
+            let itemID = dataSource.itemIdentifier(for: indexPath),
+            let todo = itemStore[itemID],
+            let cell = tableView.cellForRow(at: indexPath)
+        else { return }
+
+        // Конвертируем frame ячейки в координаты window — меню появится над ней
+        let cellFrame = tableView.convert(cell.frame, to: nil)
+        showCustomContextMenu(for: todo, cellFrame: cellFrame)
+    }
+
+    private func showCustomContextMenu(for todo: TodoItem, cellFrame: CGRect) {
+        let overlay = ContextMenuOverlay(todo: todo, sourceFrame: cellFrame)
+        overlay.onEdit = { [weak self] in
+            self?.presenter?.didSelectTodo(todo)
+        }
+        overlay.onShare = { [weak self] in
+            guard let self else { return }
+            self.presenter?.shareTodo(todo, from: self)
+        }
+        overlay.onDelete = { [weak self] in
+            self?.presenter?.deleteTodo(todo)
+        }
+
+        overlay.frame = view.window?.bounds ?? view.bounds
+        view.window?.addSubview(overlay)
+        overlay.animateIn()
     }
 
     // MARK: - TaskListViewProtocol
@@ -315,6 +360,19 @@ final class TaskListViewController: UIViewController, TaskListViewProtocol {
     }
 }
 
+// MARK: - UITableViewDelegate
+
+extension TaskListViewController: UITableViewDelegate {
+
+    func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
+        tableView.deselectRow(at: indexPath, animated: true)
+        guard
+            let itemID = dataSource.itemIdentifier(for: indexPath),
+            let todo = itemStore[itemID]
+        else { return }
+        presenter?.didSelectTodo(todo)
+    }
+}
 
 // MARK: - UITextFieldDelegate
 
@@ -326,4 +384,12 @@ extension TaskListViewController: UITextFieldDelegate {
     }
 }
 
+// MARK: - TaskDetailModuleDelegate
 
+extension TaskListViewController: TaskDetailModuleDelegate {
+    func didSaveTask() {
+        // Единственное место обновления списка после сохранения задачи.
+        // viewWillAppear больше не делает запрос — нет двойного вызова.
+        presenter?.viewDidLoad()
+    }
+}
