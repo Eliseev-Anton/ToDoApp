@@ -1,10 +1,13 @@
 import UIKit
 
 /// Контракты VIPER-модуля списка задач.
+///
+/// Каждый протокол описывает зону ответственности одного компонента.
+/// Все зависимости между компонентами — только через эти протоколы,
 
 // MARK: - View
 
-/// View знает только о том, что нужно отобразить
+/// View знает только о том, что нужно отобразить — никакой бизнес-логики
 protocol TaskListViewProtocol: AnyObject {
     var presenter: TaskListPresenterProtocol? { get set }
 
@@ -16,6 +19,7 @@ protocol TaskListViewProtocol: AnyObject {
 
 // MARK: - Presenter
 
+/// Посредник между View и Interactor.
 /// Получает пользовательские события от View, отдаёт команды Interactor,
 /// форматирует данные для отображения.
 protocol TaskListPresenterProtocol: AnyObject {
@@ -25,6 +29,12 @@ protocol TaskListPresenterProtocol: AnyObject {
 
     /// Вызывается при загрузке экрана — запускает загрузку задач
     func viewDidLoad()
+    /// Пользователь нажал на задачу — открыть экран редактирования
+    func didSelectTodo(_ todo: TodoItem)
+    /// Нажата кнопка создания новой задачи
+    func addNewTodo()
+    /// Удалить задачу (вызывается из контекстного меню)
+    func deleteTodo(_ todo: TodoItem)
     /// Переключить статус выполнения задачи
     func toggleTodoCompletion(_ todo: TodoItem)
     /// Поиск по строке запроса
@@ -35,6 +45,7 @@ protocol TaskListPresenterProtocol: AnyObject {
 
 // MARK: - Interactor Input
 
+/// Интерфейс Interactor, доступный Presenter-у.
 /// Interactor работает с данными: CoreData, сеть, бизнес-правила.
 protocol TaskListInteractorInputProtocol: AnyObject {
     var presenter: TaskListInteractorOutputProtocol? { get set }
@@ -54,7 +65,7 @@ protocol TaskListInteractorOutputProtocol: AnyObject {
     func didFetchTodos(_ todos: [TodoItem])
     /// Что-то пошло не так — Presenter решит, как уведомить пользователя
     func didFailWithError(_ message: String)
-    /// Данные изменились (удаление, toggle)
+    /// Данные изменились (удаление, toggle) — нужно перечитать список
     func didUpdateData()
 }
 
@@ -64,6 +75,8 @@ protocol TaskListInteractorOutputProtocol: AnyObject {
 protocol TaskListRouterProtocol: AnyObject {
     /// Собирает весь VIPER-модуль и возвращает готовый NavigationController
     static func createModule() -> UINavigationController
-    
+    /// Переходит на экран детального просмотра/редактирования задачи.
+    /// todo == nil означает создание новой задачи.
+    func navigateToDetail(from view: TaskListViewProtocol, with todo: TodoItem?)
 }
 
